@@ -89,10 +89,11 @@ application=$(ls -lt *.jar | head -n 1 | awk '{print $NF}')
 #PROFILE="$PROFILE --spring.profiles.active=prod";
 ## ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ## NACOS
+NACOS_ADDR="127.0.0.1"
 #SP_ARGS="$SP_ARGS --spring.cloud.nacos.username=";
 #SP_ARGS="$SP_ARGS --spring.cloud.nacos.password=";
-#SP_ARGS="$SP_ARGS --spring.cloud.nacos.discovery.server-addr=";
-#SP_ARGS="$SP_ARGS --spring.cloud.nacos.config.server-addr";
+#SP_ARGS="$SP_ARGS --spring.cloud.nacos.discovery.server-addr=$NACOS_ADDR";
+#SP_ARGS="$SP_ARGS --spring.cloud.nacos.config.server-addr=$NACOS_ADDR";
 ## ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ## 让logback打印的时候尝试使用彩色
 SP_ARGS="$SP_ARGS --spring.output.ansi.enabled=DETECT";
@@ -151,7 +152,7 @@ startup() {
 ########################################################################
 
 if [[ "$1" == "-d" ]]; then
-    SP_ARGS="$SP_ARGS --logger.level.root.password=debug";
+    SP_ARGS="$SP_ARGS --logging.level.root=debug";
 fi 
 if [[ "$1" == "-b" ]]; then
     info "使用自动参数需JDK 8u191+、JDK 10及以上版本。"
