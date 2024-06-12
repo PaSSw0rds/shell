@@ -1,6 +1,7 @@
 #!/bin/bash
-#shc -rvf update-openssl-openssh.default-offline.sh -o sshd-all-in-one.x
-#bash <(wget -qO- https://example.com/demo.sh) 
+#shc CFLAGS=-static CC=-static LDFLAGS=-static -f update-openssl-openssh.default-offline.sh -o sshd-all-in-one
+#shc -rvf update-openssl-openssh.default-offline.sh -o sshd-all-in-one.x.sh
+#bash <(wget -qO- https://down.vpsaff.net/linux/speedtest/superbench.sh) 
 
 function err() {
     printf "[%s]: \033[41;97mERROR  : %s \033[0m\n" "$(date +'%Y-%m-%dT%H:%M:%S')" "$@"
@@ -103,8 +104,9 @@ fi
 info "升级OpenSSH，建议先临时安装DropbearSSH，再开始升级OpenSSH"
 info "旧版本OpenSSH备份在/tmp/openssh_bak_$DATE"
 info "本脚本只负责升级，需自备开发环境以便安装编译用的依赖："
-info "gcc bzip2 make perl-devel pam-devel zlib-devel"
+info "gcc bzip2 make perl-devel pam-devel zlib-devel perl-IPC-Cmd"
 info "操作过程严禁擅自中断 否则后果自负"
+info "Author:gan.guangchuan   Tel:13560089519 "
 
 #安装Dropbear
 function INSTALL_DROPBEAR() {
@@ -309,16 +311,19 @@ function INSTALL_OPENSSL() {
     echo -e "\033[33m正在安装OpenSSL\033[0m (6/7)"
     cd /tmp/$OPENSSL_VERSION/
     if [ $? -eq 0 ];then
-        ./config --prefix=/usr/local/openssl --openssldir=/usr/local/openssl/ssl
+        ./config --prefix=/usr/local/$OPENSSL_VERSION --openssldir=/usr/local/$OPENSSL_VERSION/ssl
         make -j4
         make install -j4
         # 加入运行库
         echo "/usr/local/lib" >> /etc/ld.so.conf
         echo "/usr/local/lib64" >> /etc/ld.so.conf
+        echo "/usr/local/$OPENSSL_VERSION/lib" >> /etc/ld.so.conf
+        echo "/usr/local/$OPENSSL_VERSION/lib64" >> /etc/ld.so.conf        
         ldconfig
         source /etc/profile
         # 使用替换的办法取代openssl链接
-        cp /usr/local/openssl/bin/openssl /usr/bin/openssl -af
+        mv /usr/bin/openssl /usr/bin/openssl_$DATE
+        cp /usr/local/$OPENSSL_VERSION/bin/openssl /usr/bin/openssl -af
 
         action "安装OpenSSL" /bin/true
     else
@@ -382,21 +387,21 @@ function INSTALL_OPENSSH() {
     #安装OpenSSH
     echo -e "\033[33m正在安装OpenSSH\033[0m (7/7)"
     cd /tmp/$OPENSSH_VERSION
-    ./configure --prefix=/usr/local/openssh --sysconfdir=/usr/local/openssh/etc --with-zlib --with-md5-passwords --with-ssl-dir=/usr/local/lib64/ #--with-pam --with-selinux 
+    ./configure --prefix=/usr/local/$OPENSSH_VERSION --sysconfdir=/usr/local/$OPENSSH_VERSION/etc --with-zlib --with-md5-passwords --with-ssl-dir=/usr/local/$OPENSSL_VERSION/ #--with-pam --with-selinux 
     if [ $? -eq 0 ];then
         make -j4
         make install -j4
         # 用我的配置！
-        cp -af ~/ssh/sshd_config /usr/local/openssh/etc/sshd_config
+        cp -af ~/ssh/sshd_config /usr/local/$OPENSSH_VERSION/etc/sshd_config
         cp -af ~/ssh/pam.d.sshd /etc/pam.d/sshd
         # 防止你误会啦，改下位置好不好？
         rm -rf /etc/ssh
-        ln -s /usr/local/etc/ssh /etc/ssh
+        ln -s /usr/local/$OPENSSH_VERSION/etc /etc/ssh
         # 取代源文件
-        cp /usr/local/sbin/sshd /usr/sbin/sshd -af
-        cp /usr/local/bin/sftp /usr/bin/sftp -af
-        cp /usr/local/bin/scp /usr/bin/scp -af
-        cp /usr/local/bin/ssh /usr/bin/ssh -af
+        cp /usr/local/$OPENSSH_VERSION/sbin/sshd /usr/sbin/sshd -af
+        cp /usr/local/$OPENSSH_VERSION/bin/sftp /usr/bin/sftp -af
+        cp /usr/local/$OPENSSH_VERSION/bin/scp /usr/bin/scp -af
+        cp /usr/local/$OPENSSH_VERSION/bin/ssh /usr/bin/ssh -af
 
         #最后的处理
         echo -e "\033[41;37m 请按提示进行操作，默认为是（Y） \033[0m\n"
@@ -405,20 +410,20 @@ function INSTALL_OPENSSH() {
             [nN][oO]|[nN])
                 ;;
             *)
-                sed -i 's/#PermitRootLogin no/PermitRootLogin yes/' /usr/local/openssh/etc/sshd_config > /dev/null 2>&1
-                sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /usr/local/openssh/etc/sshd_config > /dev/null 2>&1
-                sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /usr/local/openssh/etc/sshd_config > /dev/null 2>&1
+                sed -i 's/#PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config > /dev/null 2>&1
+                sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config > /dev/null 2>&1
+                sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config > /dev/null 2>&1
                 ;;
         esac
         read -r -p "是否允许Root使用密码登录? [Y/n] " input
         case $input in
             [nN][oO]|[nN])
-                sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /usr/local/openssh/etc/sshd_config > /dev/null 2>&1
-                sed -i 's/#PasswordAuthentication no/PasswordAuthentication no/' /usr/local/openssh/etc/sshd_config > /dev/null 2>&1
+                sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config > /dev/null 2>&1
+                sed -i 's/#PasswordAuthentication no/PasswordAuthentication no/' /etc/ssh/sshd_config > /dev/null 2>&1
                 ;;
             *)
-                sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /usr/local/openssh/etc/sshd_config > /dev/null 2>&1
-                sed -i 's/#PasswordAuthentication no/PasswordAuthentication yes/' /usr/local/openssh/etc/sshd_config > /dev/null 2>&1
+                sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config > /dev/null 2>&1
+                sed -i 's/#PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config > /dev/null 2>&1
                 ;;
         esac
         # 给我开机启动！
