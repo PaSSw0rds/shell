@@ -311,7 +311,7 @@ function INSTALL_OPENSSL() {
     echo -e "\033[33m正在安装OpenSSL\033[0m (6/7)"
     cd /tmp/$OPENSSL_VERSION/
     if [ $? -eq 0 ];then
-        ./config --prefix=/usr/local/$OPENSSL_VERSION --openssldir=/usr/local/$OPENSSL_VERSION/ssl
+        ./config --prefix=/usr/local/$OPENSSL_VERSION --openssldir=/usr/local/$OPENSSL_VERSION/ssl enable-shared
         make -j4
         make install -j4
         # 加入运行库
