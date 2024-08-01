@@ -15,7 +15,7 @@ HISDIR=/var/log/.history
 if [ ! -d ${HISDIR} ]; then mkdir -vp ${HISDIR}; fi
 
 ## 名称: err 、info 、warning
-## 用途：全局Log信息打印函数
+## 用途：全局Log信息打印函数git checkout --
 ## 参数: $@
 function err() {
     printf "[$(date +'%Y-%m-%dT%H:%M:%S')]: \033[31mERROR: $@ \033[0m\n"
@@ -362,7 +362,7 @@ EOF
 
 function createNoRoot() {
     info "[-] 新建用户"
-    useradd -G root -c "Create By Gan GuangChuan TRS(R)(C)" toor
+    useradd -G root -c "chippy" toor
     TMPASSWD=$(openssl passwd ",./<>?")
     echo toor:${TMPASSWD} | chpasswd
     echo ${TMPASSWD} | passwd --stdin toor
