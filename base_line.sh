@@ -15,7 +15,7 @@ HISDIR=/var/log/.history
 if [ ! -d ${HISDIR} ]; then mkdir -vp ${HISDIR}; fi
 
 ## 名称: err 、info 、warning
-## 用途：全局Log信息打印函数git checkout --
+## 用途：全局Log信息打印函数
 ## 参数: $@
 function err() {
     printf "[$(date +'%Y-%m-%dT%H:%M:%S')]: \033[31mERROR: $@ \033[0m\n"
@@ -475,7 +475,7 @@ if [ $? -eq 2 ]; then
 else
     systemctl start auditd
     if [ $? -ne 0 ]; then
-        err "[!] 启动 rsyslog 审计插件失败!"
+        err "[!] 启动 auditd 审计插件失败!"
         read -r -p "按任意键以继续… " input
         case $input in
         *)
@@ -485,23 +485,44 @@ else
     else
         systemctl enable auditd
         info "[-] 审计日志: 密码修改、selinux策略、内核模块修改"
-        auditctl -w /etc/passwd -p wa -k passwd_changes
-        auditctl -w /etc/selinux/ -p wa -k selinux_changes
-        auditctl -w /sbin/insmod -p x -k module_insertion
-        #[登录、注销、会话]
         info "[-] 审计日志: 登录、注销、会话"
-        auditctl -a always,exit -F arch=b64 -S execve -k logins
-        auditctl -a exit,always -F arch=b64 -S login -S logout -S session -S execve -k logins
-        auditctl -a exit,always -F arch=b32 -S login -S logout -S session -S execve -k logins
+        info "[-] 审计日志: 记录所有命令"
+        RULES_FILE="/etc/audit/rules.d/audit.rules"
+        RULES_CONF="/etc/audit/auditd.conf"
+        # 清空现有的审计规则
+        auditctl -D
+        egrep -q "max_log_file[^_].*=" $RULES_CONF && sed -ri "s/.*max_log_file[^_].*=*/max_log_file=999/" $RULES_CONF || echo "max_log_file=999" >> $RULES_CONF
+        egrep -q "max_log_file[_].*=" $RULES_CONF && sed -ri "s/.*max_log_file[_].*=*/max_log_file_action=keep_logs/" $RULES_CONF || echo "max_log_file_action=keep_logs" >> $RULES_CONF
+        # 监控密码文件的变更
+        echo "-w /etc/shadow -p wa -k password_change" >> $RULES_FILE
+        # 监控SELinux策略变更
+        echo "-w /etc/selinux/ -p wa -k selinux_change" >> $RULES_FILE
+        # 监控内核模块的加载和卸载
+        echo "-w /sbin/insmod -p x -k module_change" >> $RULES_FILE
+        echo "-w /sbin/rmmod -p x -k module_change" >> $RULES_FILE
+        echo "-w /sbin/modprobe -p x -k module_change" >> $RULES_FILE
+        # 监控登录和注销
+        echo "-w /var/log/wtmp -p wa -k logins" >> $RULES_FILE
+        echo "-w /var/run/utmp -p wa -k sessions" >> $RULES_FILE
+        echo "-w /var/log/btmp -p wa -k logouts" >> $RULES_FILE
+        # 记录所有用户执行的命令
+        echo "-a always,exit -F arch=b64 -S execve -k commands" >> $RULES_FILE         
+        systemctl restart auditd
+        #auditctl -w /etc/passwd -p wa -k passwd_changes
+        #auditctl -w /etc/selinux/ -p wa -k selinux_changes
+        #auditctl -w /sbin/insmod -p x -k module_insertion
+        #[登录、注销、会话]
+        #auditctl -a always,exit -F arch=b64 -S execve -k logins
+        #auditctl -a exit,always -F arch=b64 -S login -S logout -S session -S execve -k logins
+        #auditctl -a exit,always -F arch=b32 -S login -S logout -S session -S execve -k logins
         #[记录执行了特权命令（即使用了setuid或setgid标志的命令）]
         #auditctl -a exit,always -F arch=b64 -S setuid -S setgid -k priv-cmds
         #auditctl -a exit,always -F arch=b32 -S setuid -S setgid -k priv-cmds
         #[记录所有命令]
-        info "[-] 记录所有命令"
-        auditctl -a exit,always -F arch=b64 -S execve -F key=exec
-        auditctl -a exit,always -F arch=b32 -S execve -F key=exec
+        #auditctl -a exit,always -F arch=b64 -S execve -F key=exec
+        #auditctl -a exit,always -F arch=b32 -S execve -F key=exec
         info "[-] 使用 ausearch 来查看审计日志："
-        info "[·] ausearch -m execve -i / ausearch -k exec"
+        info "[·] ausearch -m execve -i / ausearch -k password_change / ausearch -k commands"
     fi
 fi
 # ------------------------------------------------------------------------------------
